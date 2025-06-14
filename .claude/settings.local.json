@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm:*)",
+      "Bash(npx expo install:*)",
+      "Bash(npx:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(node:*)"
+    ],
+    "deny": []
+  }
+}

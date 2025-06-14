@@ -1,36 +1,29 @@
 {
   "expo": {
-    "name": "timekeeper",
-    "slug": "timekeeper",
+    "name": "timekeeper-new",
+    "slug": "timekeeper-new",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.3alehom.timekeeper"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-asset"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "a4cd0fe4-5446-4391-aff0-f9a988af18c0"
-      }
     }
   }
 }

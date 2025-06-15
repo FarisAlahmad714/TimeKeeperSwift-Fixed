@@ -6,7 +6,8 @@
       "Bash(npx:*)",
       "Bash(mkdir:*)",
       "Bash(grep:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

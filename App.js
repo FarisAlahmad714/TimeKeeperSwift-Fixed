@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput } from 'reac
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import Alarms from './screens/Alarms';
+import NewAlarms from './screens/NewAlarms';
 
 const Tab = createBottomTabNavigator();
 
@@ -286,38 +286,38 @@ export default function App() {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
             switch (route.name) {
-              case 'Timer':
-                iconName = 'timer';
-                break;
-              case 'Stopwatch':
-                iconName = 'av-timer';
-                break;
               case 'Alarms':
                 iconName = 'alarm';
                 break;
               case 'World Clock':
                 iconName = 'schedule';
                 break;
+              case 'Timer':
+                iconName = 'timer';
+                break;
+              case 'Stopwatch':
+                iconName = 'av-timer';
+                break;
               default:
                 iconName = 'circle';
             }
             return <Icon name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: '#8B5CF6',
-          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarActiveTintColor: '#FF0000',
+          tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {
-            backgroundColor: '#1F1F2E',
+            backgroundColor: '#1C1C1E',
           },
           headerStyle: {
-            backgroundColor: '#0F0C29',
+            backgroundColor: '#000000',
           },
           headerTintColor: '#FFFFFF',
         })}
       >
+        <Tab.Screen name="Alarms" component={NewAlarms} />
+        <Tab.Screen name="World Clock" component={WorldClockScreen} />
         <Tab.Screen name="Timer" component={TimerScreen} />
         <Tab.Screen name="Stopwatch" component={StopwatchScreen} />
-        <Tab.Screen name="Alarms" component={Alarms} />
-        <Tab.Screen name="World Clock" component={WorldClockScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );
@@ -326,7 +326,7 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0F0C29',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   button: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#FF0000',
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
@@ -364,10 +364,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   timeValue: {
-    color: '#8B5CF6',
+    color: '#FFFFFF',
     fontSize: 32,
     fontWeight: 'bold',
-    backgroundColor: '#24243e',
+    backgroundColor: '#1C1C1E',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
@@ -396,10 +396,10 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   stopButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: '#FF3B30',
   },
   startButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#34C759',
   },
   
   // Stopwatch styles

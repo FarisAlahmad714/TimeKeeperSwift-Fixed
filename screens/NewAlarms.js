@@ -799,6 +799,36 @@ const NewAlarms = () => {
     }
   };
 
+  const toggleIndividualAlarm = async (eventId, alarmId) => {
+    const updatedEvents = events.map(event => {
+      if (event.id === eventId) {
+        const updatedAlarms = event.alarms.map(alarm => {
+          if (alarm.id === alarmId) {
+            return { ...alarm, enabled: !alarm.enabled };
+          }
+          return alarm;
+        });
+        return { ...event, alarms: updatedAlarms };
+      }
+      return event;
+    });
+
+    // Update state first
+    setEvents(updatedEvents);
+    saveEvents(updatedEvents);
+
+    // Update the selected event for the details modal
+    const updatedSelectedEvent = updatedEvents.find(e => e.id === eventId);
+    setSelectedEvent(updatedSelectedEvent);
+
+    // Reschedule notifications for this event
+    const targetEvent = updatedEvents.find(e => e.id === eventId);
+    if (targetEvent.isEnabled) {
+      await cancelEventNotifications(targetEvent);
+      await scheduleEventNotifications(targetEvent);
+    }
+  };
+
   const deleteEvent = (eventId) => {
     const eventToDelete = events.find(e => e.id === eventId);
     Alert.alert(
@@ -1723,10 +1753,13 @@ const NewAlarms = () => {
                         </Text>
                       )}
                     </View>
-                    <View style={[
-                      styles.timeDetailIndicator,
-                      alarm.enabled ? styles.timeDetailActive : styles.timeDetailInactive
-                    ]} />
+                    <Switch
+                      value={alarm.enabled}
+                      onValueChange={() => toggleIndividualAlarm(selectedEvent.id, alarm.id)}
+                      trackColor={{ false: '#374151', true: '#DC2626' }}
+                      thumbColor={alarm.enabled ? '#FFFFFF' : '#9CA3AF'}
+                      ios_backgroundColor="#374151"
+                    />
                   </View>
                 ))}
               </View>

@@ -2,10 +2,42 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import NewAlarms from './screens/NewAlarms';
+import WorldClockScreen from './screens/WorldClockScreen';
+import KnobAlarmSetter from './screens/KnobAlarmSetter';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// Alarms Stack Navigator
+function AlarmsStackNavigator() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyleInterpolator: ({ current, layouts }) => {
+          return {
+            cardStyle: {
+              transform: [
+                {
+                  translateX: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.width, 0],
+                  }),
+                },
+              ],
+            },
+          };
+        },
+      }}
+    >
+      <Stack.Screen name="AlarmsList" component={NewAlarms} />
+      <Stack.Screen name="KnobSetter" component={KnobAlarmSetter} />
+    </Stack.Navigator>
+  );
+}
 
 // Full Timer Screen
 function TimerScreen() {
@@ -188,95 +220,6 @@ function StopwatchScreen() {
 }
 
 
-// Full World Clock Screen
-function WorldClockScreen() {
-  const [clocks, setClocks] = React.useState([]);
-  const [currentTime, setCurrentTime] = React.useState(new Date());
-
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const addCity = () => {
-    const cities = [
-      { name: 'New York', offset: -5 },
-      { name: 'London', offset: 0 },
-      { name: 'Tokyo', offset: 9 },
-      { name: 'Sydney', offset: 11 },
-      { name: 'Dubai', offset: 4 },
-      { name: 'Los Angeles', offset: -8 },
-    ];
-    
-    const availableCities = cities.filter(city => 
-      !clocks.some(clock => clock.name === city.name)
-    );
-    
-    if (availableCities.length === 0) {
-      Alert.alert('No More Cities', 'All cities already added!');
-      return;
-    }
-    
-    const buttons = availableCities.map(city => ({
-      text: city.name,
-      onPress: () => setClocks([...clocks, { ...city, id: Date.now().toString() }])
-    }));
-    
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-    
-    Alert.alert('Select City', 'Choose a city to add:', buttons);
-  };
-
-  const deleteCity = (id) => {
-    setClocks(clocks.filter(clock => clock.id !== id));
-  };
-
-  const getTimeForCity = (offset) => {
-    const utc = currentTime.getTime() + (currentTime.getTimezoneOffset() * 60000);
-    const cityTime = new Date(utc + (offset * 3600000));
-    return cityTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  const getDateForCity = (offset) => {
-    const utc = currentTime.getTime() + (currentTime.getTimezoneOffset() * 60000);
-    const cityTime = new Date(utc + (offset * 3600000));
-    return cityTime.toLocaleDateString();
-  };
-
-  return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>World Clock</Text>
-      
-      {clocks.length === 0 ? (
-        <Text style={styles.emptyText}>No cities added</Text>
-      ) : (
-        <View style={styles.clocksContainer}>
-          {clocks.map((clock) => (
-            <View key={clock.id} style={styles.clockItem}>
-              <View style={styles.clockInfo}>
-                <Text style={styles.cityName}>{clock.name}</Text>
-                <Text style={styles.cityTime}>{getTimeForCity(clock.offset)}</Text>
-                <Text style={styles.cityDate}>{getDateForCity(clock.offset)}</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.deleteButton}
-                onPress={() => deleteCity(clock.id)}
-              >
-                <Text style={styles.deleteText}>×</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <TouchableOpacity style={styles.button} onPress={addCity}>
-        <Text style={styles.buttonText}>Add City</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 export default function App() {
   return (
@@ -314,7 +257,7 @@ export default function App() {
           headerTintColor: '#FFFFFF',
         })}
       >
-        <Tab.Screen name="Alarms" component={NewAlarms} />
+        <Tab.Screen name="Alarms" component={AlarmsStackNavigator} />
         <Tab.Screen name="World Clock" component={WorldClockScreen} />
         <Tab.Screen name="Timer" component={TimerScreen} />
         <Tab.Screen name="Stopwatch" component={StopwatchScreen} />

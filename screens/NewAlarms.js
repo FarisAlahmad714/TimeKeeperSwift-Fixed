@@ -48,7 +48,7 @@ const RINGTONES = [
   { label: 'Urgency', value: 'Urgency.mp3' }
 ];
 
-const NewAlarms = () => {
+const NewAlarms = ({ navigation }) => {
   const [events, setEvents] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -958,17 +958,26 @@ const NewAlarms = () => {
             {events.filter(e => e.isEnabled).length} active events • {events.reduce((total, e) => total + e.alarms.filter(a => a.enabled).length, 0)} total alarms
           </Text>
         </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => {
-            resetForm();
-            setSelectedEvent(null);
-            setShowCreateModal(true);
-          }}
-          activeOpacity={0.8}
-        >
-          <Icon name="add" size={32} color="white" />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={styles.knobButton}
+            onPress={() => navigation.navigate('KnobSetter')}
+            activeOpacity={0.8}
+          >
+            <Icon name="tune" size={24} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => {
+              resetForm();
+              setSelectedEvent(null);
+              setShowCreateModal(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Icon name="add" size={32} color="white" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Events List */}
@@ -1837,6 +1846,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     marginTop: 4,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  knobButton: {
+    backgroundColor: '#8B5CF6',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   addButton: {
     backgroundColor: '#FF0000',

@@ -16,6 +16,10 @@ import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
+// Knob slider constants
+const SLIDER_HEIGHT = 8;
+const KNOB_SIZE = 24;
+
 // Scene configurations based on time of day
 const SCENES = {
   bedroom: {
@@ -63,11 +67,10 @@ const KnobAlarmSetter = ({ navigation, route }) => {
   const sceneOpacity = useRef(new Animated.Value(1)).current;
   const spaceshipX = useRef(new Animated.Value(-100)).current;
   const droneY = useRef(new Animated.Value(0)).current;
+  const searchTimeout = useRef(null);
 
   // Knob slider dimensions
   const sliderWidth = width - 60;
-  const sliderHeight = 8;
-  const knobSize = 24;
 
   useEffect(() => {
     // Start animations
@@ -343,7 +346,7 @@ const KnobAlarmSetter = ({ navigation, route }) => {
                 transform: [{
                   translateX: knobPosition.interpolate({
                     inputRange: [0, 100],
-                    outputRange: [0, sliderWidth - knobSize]
+                    outputRange: [0, sliderWidth - KNOB_SIZE]
                   })
                 }]
               }
@@ -523,17 +526,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   sliderTrack: {
-    height: sliderHeight,
+    height: SLIDER_HEIGHT,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: sliderHeight / 2,
+    borderRadius: SLIDER_HEIGHT / 2,
     position: 'relative',
   },
   knob: {
     position: 'absolute',
-    width: knobSize,
-    height: knobSize,
+    width: KNOB_SIZE,
+    height: KNOB_SIZE,
     top: -8,
-    borderRadius: knobSize / 2,
+    borderRadius: KNOB_SIZE / 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -543,7 +546,7 @@ const styles = StyleSheet.create({
   knobGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: knobSize / 2,
+    borderRadius: KNOB_SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
   },

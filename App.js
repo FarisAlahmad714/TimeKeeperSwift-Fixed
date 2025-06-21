@@ -6,7 +6,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import NewAlarms from './screens/NewAlarms';
 import WorldClockScreen from './screens/WorldClockScreen';
-import KnobAlarmSetter from './screens/KnobAlarmSetter';
+import PowerhouseAlarmSetter from './screens/PowerhouseAlarmSetter';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -33,8 +33,8 @@ function AlarmsStackNavigator() {
         },
       }}
     >
+      <Stack.Screen name="PowerhouseAlarmSetter" component={PowerhouseAlarmSetter} />
       <Stack.Screen name="AlarmsList" component={NewAlarms} />
-      <Stack.Screen name="KnobSetter" component={KnobAlarmSetter} />
     </Stack.Navigator>
   );
 }

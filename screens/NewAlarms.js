@@ -48,7 +48,7 @@ const RINGTONES = [
   { label: 'Urgency', value: 'Urgency.mp3' }
 ];
 
-const NewAlarms = ({ navigation }) => {
+const NewAlarms = ({ navigation, route }) => {
   const [events, setEvents] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -73,6 +73,7 @@ const NewAlarms = ({ navigation }) => {
   const [newAlarmDescription, setNewAlarmDescription] = useState('');
   const [daySelectionType, setDaySelectionType] = useState('custom'); // 'everyday', 'weekdays', 'weekends', 'every2days', 'custom'
   const [selectedDays, setSelectedDays] = useState([]);
+  const [isAddingAlarm, setIsAddingAlarm] = useState(false);
   
   // Time picker states
   const [selectedHour, setSelectedHour] = useState(7);
@@ -89,10 +90,32 @@ const NewAlarms = ({ navigation }) => {
     loadEvents();
     requestNotificationPermissions();
     
+    // Handle pre-filled time from PowerhouseAlarmSetter
+    if (route.params?.prefilledTime) {
+      const { hours, minutes, displayTime } = route.params.prefilledTime;
+      
+      // Set the time picker values
+      const { hour, period } = convertTo12Hour(hours);
+      setSelectedHour(hour);
+      setSelectedMinute(minutes);
+      setSelectedPeriod(period);
+      
+      // Set a default event name based on the time
+      setEventName(`Wake Up Alarm ${displayTime}`);
+      setEventDescription('Alarm created from Powerhouse Alarm Setter');
+      
+      // Auto-open the create modal
+      setShowCreateModal(true);
+      
+      // Clear the route params to prevent re-execution
+      navigation.setParams({ prefilledTime: undefined });
+    }
+    
     // Configure notification behavior
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
+        shouldShowBanner: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
       }),
@@ -175,6 +198,50 @@ const NewAlarms = ({ navigation }) => {
   React.useEffect(() => {
     updateAlarmTime();
   }, [selectedHour, selectedMinute, selectedPeriod]);
+
+  // Test function to verify alarm notifications work
+  const testAlarmInOneMinute = async (event, alarmIndex = 0) => {
+    try {
+      if (!event.alarms || event.alarms.length === 0) {
+        Alert.alert('No Alarms', 'This event has no alarms to test');
+        return;
+      }
+
+      const alarm = event.alarms[alarmIndex];
+      const testTime = new Date();
+      testTime.setSeconds(testTime.getSeconds() + 60); // 1 minute from now
+
+      console.log(`🧪 Testing alarm: ${event.eventName} - ${alarm.day} at ${alarm.time}`);
+      console.log(`🧪 Test notification scheduled for: ${testTime.toLocaleString()}`);
+
+      const testId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `🧪 TEST: ${event.eventName}`,
+          body: `${alarm.day} - ${alarm.description || event.description || 'Alarm time!'}\n\nThis is a 1-minute test of your alarm system!`,
+          sound: event.ringtone,
+          data: { 
+            eventId: event.id, 
+            alarmId: alarm.id,
+            type: 'test_alarm',
+            originalDay: alarm.day,
+            originalTime: alarm.time
+          }
+        },
+        trigger: testTime,
+      });
+
+      Alert.alert(
+        '🧪 Test Alarm Scheduled!',
+        `Your "${event.eventName}" alarm will test in 1 minute!\n\nOriginal: ${alarm.day} at ${alarm.time}\nTest: ${testTime.toLocaleTimeString()}\n\nThis proves your alarm system works!`,
+        [{ text: 'Got it!' }]
+      );
+
+      return testId;
+    } catch (error) {
+      console.error('Test alarm error:', error);
+      Alert.alert('Test Failed', 'Unable to schedule test alarm');
+    }
+  };
 
   /* DEBUG FUNCTIONS - Commented out for production
   // Uncomment these functions if you need to debug scheduling issues in the future
@@ -309,6 +376,8 @@ const NewAlarms = ({ navigation }) => {
   */
 
   const createEvent = async () => {
+    console.log('🎯 createEvent called with eventAlarms:', eventAlarms.length, eventAlarms);
+    
     if (!eventName.trim()) {
       Alert.alert('Missing Information', 'Please enter an event name');
       return;
@@ -326,14 +395,24 @@ const NewAlarms = ({ navigation }) => {
       ringtone: eventSoundFile,
       isEnabled: true,
       createdAt: new Date().toISOString(),
-      alarms: eventAlarms.map(alarm => ({
-        id: generateAlarmId(),
-        day: alarm.day,
-        time: alarm.time,
-        description: alarm.description || '',
-        enabled: true
-      }))
+      alarms: eventAlarms.flatMap(alarm => {
+        console.log('🔍 Processing alarm in createEvent:', alarm);
+        console.log('🔍 alarm.days:', alarm.days);
+        if (!alarm.days || !Array.isArray(alarm.days)) {
+          console.error('🔍 Invalid alarm.days:', alarm.days);
+          return [];
+        }
+        return alarm.days.map(day => ({
+          id: generateAlarmId(),
+          day: day,
+          time: alarm.time,
+          description: alarm.description || '',
+          enabled: true
+        }));
+      })
     };
+
+    console.log('🎯 Created event with alarms:', newEvent.alarms.length, newEvent.alarms);
 
     const updatedEvents = [...events, newEvent];
     setEvents(updatedEvents);
@@ -344,7 +423,10 @@ const NewAlarms = ({ navigation }) => {
     resetForm();
     setShowCreateModal(false);
 
-    Alert.alert('Success!', `Event "${newEvent.eventName}" created with ${newEvent.alarms.length} alarm(s)`);
+    Alert.alert(
+      '🎉 Recurring Event Created!', 
+      `"${newEvent.eventName}" created successfully!\n\n⏰ ${newEvent.alarms.length} recurring alarm(s) scheduled\n🔄 Will repeat weekly on selected days`
+    );
   };
 
   const getDaysFromSelectionType = (type, customDays = []) => {
@@ -364,40 +446,63 @@ const NewAlarms = ({ navigation }) => {
     }
   };
 
-  const addAlarmToEvent = () => {
+  const addAlarmToEvent = React.useCallback(() => {
+    if (isAddingAlarm) {
+      console.log('🔍 Already adding alarm, ignoring duplicate call');
+      return;
+    }
+    
+    setIsAddingAlarm(true);
+    console.log('🔍 addAlarmToEvent called - Current eventAlarms:', eventAlarms.length);
+    
     const daysToAdd = getDaysFromSelectionType(daySelectionType, selectedDays);
     
     if (daysToAdd.length === 0) {
       Alert.alert('No Days Selected', 'Please select at least one day for the alarm');
+      setIsAddingAlarm(false);
       return;
     }
 
-    const newAlarms = daysToAdd.map(day => ({
-      day,
+    // Create ONE alarm instance with multiple days (not separate alarms per day)
+    const newAlarm = {
+      id: generateAlarmId(),
+      days: daysToAdd,  // ✅ Array of days in ONE alarm
       time: newAlarmTime,
-      description: newAlarmDescription.trim()
-    }));
+      description: newAlarmDescription.trim(),
+      enabled: true
+    };
 
-    // Check for duplicates
-    const duplicates = newAlarms.filter(newAlarm =>
-      eventAlarms.some(existingAlarm =>
-        existingAlarm.day === newAlarm.day && existingAlarm.time === newAlarm.time
-      )
+    console.log('🔍 New alarm instance to add:', newAlarm);
+
+    // Check for duplicate time (regardless of days)
+    const duplicateTime = eventAlarms.some(existingAlarm => 
+      existingAlarm.time === newAlarm.time && existingAlarm.description === newAlarm.description
     );
 
-    if (duplicates.length > 0) {
-      Alert.alert('Duplicate Alarm', `Alarm for ${duplicates[0].day} at ${duplicates[0].time} already exists`);
+    if (duplicateTime) {
+      Alert.alert('Duplicate Alarm', `Alarm "${newAlarm.description}" at ${newAlarm.time} already exists`);
+      setIsAddingAlarm(false);
       return;
     }
 
-    setEventAlarms([...eventAlarms, ...newAlarms]);
+    console.log('🔍 Adding single alarm instance with', newAlarm.days.length, 'days');
+    
+    // Add ONE alarm instance (not multiple)
+    setEventAlarms(prevAlarms => {
+      const updatedAlarms = [...prevAlarms, newAlarm];
+      console.log('🔍 Functional update - Previous:', prevAlarms.length, 'New total:', updatedAlarms.length, 'alarm instances');
+      return updatedAlarms;
+    });
     
     // Reset alarm form
     setNewAlarmTime('07:00');
     setNewAlarmDescription('');
     setDaySelectionType('custom');
     setSelectedDays([]);
-  };
+    
+    // Reset loading state
+    setTimeout(() => setIsAddingAlarm(false), 100);
+  }, [eventAlarms, daySelectionType, selectedDays, newAlarmTime, newAlarmDescription, isAddingAlarm]);
 
   const removeAlarmFromEvent = (index) => {
     const updatedAlarms = eventAlarms.filter((_, i) => i !== index);
@@ -454,7 +559,10 @@ const NewAlarms = ({ navigation }) => {
     setShowEditModal(false);
     setSelectedEvent(null);
 
-    Alert.alert('Success!', `Event "${updatedEvent.eventName}" updated with ${updatedEvent.alarms.length} alarm(s)`);
+    Alert.alert(
+      '✅ Recurring Event Updated!', 
+      `"${updatedEvent.eventName}" updated successfully!\n\n⏰ ${updatedEvent.alarms.length} recurring alarm(s) rescheduled\n🔄 Will repeat weekly on selected days`
+    );
   };
 
   const prepareEditForm = (event) => {
@@ -686,8 +794,22 @@ const NewAlarms = ({ navigation }) => {
   };
 
   const renderEventItem = ({ item }) => {
-    const activeAlarms = item.alarms.filter(alarm => alarm.enabled).length;
-    const activeDays = [...new Set(item.alarms.filter(a => a.enabled).map(a => a.day))];
+    // Group alarms by time to show user-friendly summary
+    const alarmsByTime = item.alarms.reduce((acc, alarm) => {
+      if (!alarm.enabled) return acc;
+      if (!acc[alarm.time]) {
+        acc[alarm.time] = {
+          time: alarm.time,
+          days: [],
+          description: alarm.description
+        };
+      }
+      acc[alarm.time].days.push(alarm.day);
+      return acc;
+    }, {});
+    
+    const uniqueAlarms = Object.values(alarmsByTime);
+    const totalActiveDays = [...new Set(item.alarms.filter(a => a.enabled).map(a => a.day))];
     const eventIcon = getEventIcon(item.eventName);
     
     return (
@@ -711,7 +833,7 @@ const NewAlarms = ({ navigation }) => {
                 {item.description || 'No description'}
               </Text>
               <Text style={styles.eventDays}>
-                {activeDays.length > 0 ? activeDays.slice(0, 3).join(', ') + (activeDays.length > 3 ? ` +${activeDays.length - 3}` : '') : 'No active days'}
+                {totalActiveDays.length > 0 ? totalActiveDays.slice(0, 3).join(', ') + (totalActiveDays.length > 3 ? ` +${totalActiveDays.length - 3}` : '') : 'No active days'}
               </Text>
               <Text style={styles.eventSound}>🔔 {item.ringtone.replace('.mp3', '')}</Text>
             </View>
@@ -747,8 +869,16 @@ const NewAlarms = ({ navigation }) => {
           
           <View style={styles.eventStats}>
             <Text style={styles.statText}>
-              {activeAlarms} of {item.alarms.length} alarms active
+              {uniqueAlarms.length} alarm time{uniqueAlarms.length !== 1 ? 's' : ''} • {totalActiveDays.length} day{totalActiveDays.length !== 1 ? 's' : ''}
             </Text>
+            {uniqueAlarms.slice(0, 2).map((alarm, index) => (
+              <Text key={index} style={styles.alarmSummary}>
+                {alarm.time} - {alarm.days.length === 7 ? 'Every day' : alarm.days.join(', ')}
+              </Text>
+            ))}
+            {uniqueAlarms.length > 2 && (
+              <Text style={styles.alarmSummary}>+{uniqueAlarms.length - 2} more...</Text>
+            )}
           </View>
         </TouchableOpacity>
       </View>
@@ -886,7 +1016,7 @@ const NewAlarms = ({ navigation }) => {
       const now = new Date();
       const nextAlarmDate = new Date();
       
-      // Set the target time
+      // Set the target time for today first
       nextAlarmDate.setHours(hours, minutes, 0, 0);
       
       // Calculate days until target day
@@ -898,36 +1028,44 @@ const NewAlarms = ({ navigation }) => {
         daysUntilTarget += 7; // Schedule for next week
       }
       
+      // For testing in Expo Go, add buffer if time is very close
+      if (daysUntilTarget === 0) {
+        const timeDiff = nextAlarmDate.getTime() - now.getTime();
+        if (timeDiff < 300000) { // Less than 5 minutes
+          daysUntilTarget += 7; // Schedule for next week instead
+          console.log(`⚠️ Time ${alarm.time} on ${alarm.day} is too close (${Math.round(timeDiff/60000)} min), scheduling for next week`);
+        }
+      }
+      
       // Set the final date
       nextAlarmDate.setDate(now.getDate() + daysUntilTarget);
 
-      // Schedule multiple occurrences (next 4 weeks to simulate repeating)
-      for (let week = 0; week < 4; week++) {
-        const scheduleDate = new Date(nextAlarmDate);
-        scheduleDate.setDate(nextAlarmDate.getDate() + (week * 7));
+      // Schedule proper recurring weekly notification
+      try {
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: event.eventName,
+            body: `${alarm.day} - ${alarm.description || event.description || 'Alarm time!'}`,
+            sound: event.ringtone,
+            data: { 
+              eventId: event.id, 
+              alarmId: alarm.id,
+              type: 'recurring_event_alarm',
+              day: alarm.day
+            }
+          },
+          trigger: {
+            weekday: targetDay + 1, // iOS uses 1-7 (1=Sunday, 2=Monday, etc.)
+            hour: hours,
+            minute: minutes,
+            repeats: true,
+          },
+        });
         
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: event.eventName,
-              body: alarm.description || event.description || 'Alarm time!',
-              sound: event.ringtone,
-              data: { 
-                eventId: event.id, 
-                alarmId: alarm.id,
-                type: 'event_alarm',
-                week: week
-              }
-            },
-            trigger: {
-              type: 'date',
-              date: scheduleDate,
-            },
-          });
-          
-        } catch (error) {
-          console.error(`Error scheduling notification for week ${week + 1}:`, error);
-        }
+        console.log(`Scheduled recurring event alarm for ${alarm.day} at ${alarm.time}, Event: ${event.eventName}, ID: ${notificationId}`);
+        
+      } catch (error) {
+        console.error(`Error scheduling recurring notification for ${alarm.day}:`, error);
       }
     }
   };
@@ -961,7 +1099,7 @@ const NewAlarms = ({ navigation }) => {
         <View style={styles.headerButtons}>
           <TouchableOpacity 
             style={styles.knobButton}
-            onPress={() => navigation.navigate('KnobSetter')}
+            onPress={() => navigation.navigate('PowerhouseAlarmSetter')}
             activeOpacity={0.8}
           >
             <Icon name="tune" size={24} color="white" />
@@ -1022,7 +1160,13 @@ const NewAlarms = ({ navigation }) => {
               <Icon name="close" size={24} color="#DC2626" />
             </TouchableOpacity>
             <Text style={styles.modalHeaderTitle}>New Event</Text>
-            <View style={styles.modalCloseButton} />
+            <TouchableOpacity 
+              style={[styles.modalCloseButton, styles.createHeaderButton]}
+              onPress={createEvent}
+              disabled={eventAlarms.length === 0}
+            >
+              <Icon name="check" size={24} color={eventAlarms.length === 0 ? "#666" : "#34C759"} />
+            </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
@@ -1079,76 +1223,11 @@ const NewAlarms = ({ navigation }) => {
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Event Alarms</Text>
               
-              {/* Current Event Alarms */}
-              {eventAlarms.length > 0 && (
-                <View style={styles.timesPreview}>
-                  <Text style={styles.previewTitle}>
-                    {eventAlarms.length} Alarm{eventAlarms.length !== 1 ? 's' : ''} Added
-                  </Text>
-                  {eventAlarms.map((alarm, index) => (
-                    <View key={index} style={styles.timePreviewItem}>
-                      <View style={styles.alarmPreviewInfo}>
-                        <Text style={styles.timePreviewText}>
-                          {alarm.day} at {alarm.time}
-                        </Text>
-                        {alarm.description && (
-                          <Text style={styles.alarmPreviewDescription}>
-                            {alarm.description}
-                          </Text>
-                        )}
-                      </View>
-                      <TouchableOpacity 
-                        onPress={() => removeAlarmFromEvent(index)}
-                        style={styles.removeTimeButton}
-                      >
-                        <Icon name="close" size={18} color="#DC2626" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
               
               {/* Add New Alarm Section */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Alarm Time</Text>
                 
-                {/* Quick Time Presets */}
-                <View style={styles.timePresets}>
-                  {[
-                    { label: '6:00 AM', hour: 6, minute: 0, period: 'AM' },
-                    { label: '7:00 AM', hour: 7, minute: 0, period: 'AM' },
-                    { label: '8:00 AM', hour: 8, minute: 0, period: 'AM' },
-                    { label: '12:00 PM', hour: 12, minute: 0, period: 'PM' },
-                    { label: '6:00 PM', hour: 6, minute: 0, period: 'PM' },
-                    { label: '8:00 PM', hour: 8, minute: 0, period: 'PM' },
-                  ].map((preset) => (
-                    <TouchableOpacity
-                      key={preset.label}
-                      style={[
-                        styles.timePresetChip,
-                        selectedHour === preset.hour && 
-                        selectedMinute === preset.minute && 
-                        selectedPeriod === preset.period && 
-                        styles.timePresetChipSelected
-                      ]}
-                      onPress={() => {
-                        setSelectedHour(preset.hour);
-                        setSelectedMinute(preset.minute);
-                        setSelectedPeriod(preset.period);
-                      }}
-                    >
-                      <Text style={[
-                        styles.timePresetText,
-                        selectedHour === preset.hour && 
-                        selectedMinute === preset.minute && 
-                        selectedPeriod === preset.period && 
-                        styles.timePresetTextSelected
-                      ]}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
                 
                 {/* Time Picker */}
                 <View style={styles.timePickerContainer}>
@@ -1188,7 +1267,7 @@ const NewAlarms = ({ navigation }) => {
                       showsVerticalScrollIndicator={false}
                       nestedScrollEnabled={true}
                     >
-                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+                      {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
                         <TouchableOpacity
                           key={minute}
                           style={[
@@ -1313,32 +1392,47 @@ const NewAlarms = ({ navigation }) => {
               </View>
               
               <TouchableOpacity 
-                style={styles.addAlarmButton}
+                style={[styles.addAlarmButton, isAddingAlarm && styles.addAlarmButtonDisabled]}
                 onPress={addAlarmToEvent}
+                disabled={isAddingAlarm}
               >
-                <Icon name="add" size={20} color="white" />
-                <Text style={styles.addAlarmButtonText}>Add Alarm</Text>
+                <Icon name={isAddingAlarm ? "hourglass-empty" : "add"} size={20} color="white" />
+                <Text style={styles.addAlarmButtonText}>
+                  {isAddingAlarm ? "Adding..." : "Add Alarm"}
+                </Text>
               </TouchableOpacity>
+
+              {/* Created Alarms Preview */}
+              {eventAlarms.length > 0 && (
+                <View style={styles.timesPreview}>
+                  <Text style={styles.previewTitle}>
+                    ✅ {eventAlarms.length} Alarm{eventAlarms.length !== 1 ? 's' : ''} Created
+                  </Text>
+                  {eventAlarms.map((alarm, index) => (
+                    <View key={index} style={styles.timePreviewItem}>
+                      <View style={styles.alarmPreviewInfo}>
+                        <Text style={styles.timePreviewText}>
+                          {alarm.time} - {alarm.days.join(', ')}
+                        </Text>
+                        {alarm.description && (
+                          <Text style={styles.alarmPreviewDescription}>
+                            {alarm.description}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity 
+                        onPress={() => removeAlarmFromEvent(index)}
+                        style={styles.removeTimeButton}
+                      >
+                        <Icon name="close" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           </ScrollView>
 
-          {/* Modal Footer */}
-          <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => setShowCreateModal(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.createButton, eventAlarms.length === 0 && styles.createButtonDisabled]}
-              onPress={createEvent}
-              disabled={eventAlarms.length === 0}
-            >
-              <Icon name="check" size={20} color="white" />
-              <Text style={styles.createButtonText}>Create Event</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </Modal>
 
@@ -1360,7 +1454,13 @@ const NewAlarms = ({ navigation }) => {
             <Text style={styles.modalHeaderTitle}>
               Edit Event
             </Text>
-            <View style={styles.modalCloseButton} />
+            <TouchableOpacity 
+              style={[styles.modalCloseButton, styles.createHeaderButton]}
+              onPress={updateEvent}
+              disabled={eventAlarms.length === 0}
+            >
+              <Icon name="check" size={24} color={eventAlarms.length === 0 ? "#666" : "#34C759"} />
+            </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
@@ -1451,43 +1551,6 @@ const NewAlarms = ({ navigation }) => {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Add Alarm Time</Text>
                 
-                {/* Quick Time Presets */}
-                <View style={styles.timePresets}>
-                  {[
-                    { label: '6:00 AM', hour: 6, minute: 0, period: 'AM' },
-                    { label: '7:00 AM', hour: 7, minute: 0, period: 'AM' },
-                    { label: '8:00 AM', hour: 8, minute: 0, period: 'AM' },
-                    { label: '12:00 PM', hour: 12, minute: 0, period: 'PM' },
-                    { label: '6:00 PM', hour: 6, minute: 0, period: 'PM' },
-                    { label: '8:00 PM', hour: 8, minute: 0, period: 'PM' },
-                  ].map((preset) => (
-                    <TouchableOpacity
-                      key={preset.label}
-                      style={[
-                        styles.timePresetChip,
-                        selectedHour === preset.hour && 
-                        selectedMinute === preset.minute && 
-                        selectedPeriod === preset.period && 
-                        styles.timePresetChipSelected
-                      ]}
-                      onPress={() => {
-                        setSelectedHour(preset.hour);
-                        setSelectedMinute(preset.minute);
-                        setSelectedPeriod(preset.period);
-                      }}
-                    >
-                      <Text style={[
-                        styles.timePresetText,
-                        selectedHour === preset.hour && 
-                        selectedMinute === preset.minute && 
-                        selectedPeriod === preset.period && 
-                        styles.timePresetTextSelected
-                      ]}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
                 
                 {/* Time Picker */}
                 <View style={styles.timePickerContainer}>
@@ -1527,7 +1590,7 @@ const NewAlarms = ({ navigation }) => {
                       showsVerticalScrollIndicator={false}
                       nestedScrollEnabled={true}
                     >
-                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+                      {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
                         <TouchableOpacity
                           key={minute}
                           style={[
@@ -1652,31 +1715,18 @@ const NewAlarms = ({ navigation }) => {
               </View>
               
               <TouchableOpacity 
-                style={styles.addAlarmButton}
+                style={[styles.addAlarmButton, isAddingAlarm && styles.addAlarmButtonDisabled]}
                 onPress={addAlarmToEvent}
+                disabled={isAddingAlarm}
               >
-                <Icon name="add" size={20} color="white" />
-                <Text style={styles.addAlarmButtonText}>Add Alarm</Text>
+                <Icon name={isAddingAlarm ? "hourglass-empty" : "add"} size={20} color="white" />
+                <Text style={styles.addAlarmButtonText}>
+                  {isAddingAlarm ? "Adding..." : "Add Alarm"}
+                </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
 
-          {/* Modal Footer */}
-          <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => setShowEditModal(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.saveButton, eventAlarms.length === 0 && styles.saveButtonDisabled]}
-              onPress={updateEvent}
-              disabled={eventAlarms.length === 0}
-            >
-              <Text style={styles.saveButtonText}>Update Event</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </Modal>
 
@@ -1771,6 +1821,22 @@ const NewAlarms = ({ navigation }) => {
                     />
                   </View>
                 ))}
+              </View>
+
+              {/* Test Alarm Button */}
+              <View style={styles.detailsSection}>
+                <Text style={styles.sectionTitle}>Test Your Alarm</Text>
+                <TouchableOpacity 
+                  style={styles.testAlarmButton}
+                  onPress={() => testAlarmInOneMinute(selectedEvent)}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="play-circle-filled" size={24} color="#34C759" />
+                  <Text style={styles.testAlarmButtonText}>Test Alarm in 1 Minute</Text>
+                </TouchableOpacity>
+                <Text style={styles.testAlarmHint}>
+                  This will trigger a test notification in 1 minute to verify your alarm system works
+                </Text>
               </View>
 
               {/* Event Statistics */}
@@ -1992,6 +2058,10 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  createHeaderButton: {
+    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    borderRadius: 20,
   },
   modalHeaderTitle: {
     fontSize: 18,
@@ -2439,6 +2509,10 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
   },
+  addAlarmButtonDisabled: {
+    backgroundColor: '#666666',
+    opacity: 0.7,
+  },
   addAlarmButtonText: {
     fontSize: 16,
     fontWeight: '600',
@@ -2520,6 +2594,36 @@ const styles = StyleSheet.create({
   selectedTime24: {
     fontSize: 14,
     color: '#8E8E93',
+  },
+  
+  // Test alarm button styles
+  testAlarmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#34C759',
+    gap: 12,
+  },
+  testAlarmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#34C759',
+  },
+  testAlarmHint: {
+    fontSize: 12,
+    color: '#8E8E93',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  alarmSummary: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
   },
 });
 

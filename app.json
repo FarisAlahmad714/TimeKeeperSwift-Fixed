@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.3alehom.timekeeper"
+      "bundleIdentifier": "com.timekeeper.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -29,8 +32,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a4cd0fe4-5446-4391-aff0-f9a988af18c0"
+        "projectId": "e3098844-20c7-47fc-a77b-2e5864a40463"
       }
-    }
+    },
+    "owner": "fwayne714"
   }
 }
